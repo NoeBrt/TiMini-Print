@@ -56,13 +56,24 @@ class LinuxCommandTools:
     def resolve_rfcomm_channels(self, address: str) -> List[int]:
         if not shutil.which("sdptool"):
             return []
+        # Some printers (e.g. JieLi "JL_SPP" on YHK models) publish no public browse group, so `browse` finds nothing;
+        # a targeted search for the Serial Port profile still returns their channel.
+        for command in (["sdptool", "browse", address], ["sdptool", "search", "--bdaddr", address, "SP"]):
+            channels = self._sdp_channels(command)
+            if channels:
+                return channels
+        return []
+
+    @staticmethod
+    def _sdp_channels(command: List[str]) -> List[int]:
         try:
             result = subprocess.run(
-                ["sdptool", "browse", address],
+                command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 check=False,
                 text=True,
+                timeout=20,
             )
         except Exception:
             return []

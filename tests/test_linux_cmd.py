@@ -57,6 +57,22 @@ Channel: 3
         ):
             self.assertEqual(LinuxCommandTools().resolve_rfcomm_channels("AA"), [])
 
+    def test_resolve_rfcomm_channels_falls_back_to_serial_port_search(self) -> None:
+        # Printers whose SDP records sit outside the public browse group are invisible to `browse`.
+        search_output = "Service Name: JL_SPP\nChannel: 2\n"
+
+        def run(command, **_kwargs):
+            return Mock(stdout=search_output if command[1] == "search" else "")
+
+        with patch("shutil.which", return_value="/usr/bin/sdptool"), patch(
+            "subprocess.run", side_effect=run
+        ) as runner:
+            channels = LinuxCommandTools().resolve_rfcomm_channels("AA:BB")
+        self.assertEqual(channels, [2])
+        self.assertEqual(
+            runner.call_args.args[0], ["sdptool", "search", "--bdaddr", "AA:BB", "SP"]
+        )
+
     def test_ensure_paired_flow(self) -> None:
         tools = LinuxCommandTools()
         with patch.object(tools, "_has_bluetoothctl", return_value=True), patch.object(
